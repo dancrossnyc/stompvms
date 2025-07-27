@@ -1,44 +1,42 @@
+#include <ctype.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 
+#include <ssdef.h>    // VMS specific
+
 #include "vms_simple_stomp.h"
 
-static void print(char *msg)
+static void
+vms_simple_stomp_print_err(const simple_stomp_t *ctx)
 {
-   printf("%s\n", msg);
+    printf("%s\n", ctx->errmsg);
 }
 
-static char *in_cstr(struct dsc$descriptor *s)
+static simple_string_t
+desc2string(struct dsc$descriptor *desc)
 {
-    int slen, ix;
-    char *sptr, *res;
-    if(s->dsc$b_class == DSC$K_CLASS_S || s->dsc$b_class == DSC$K_CLASS_D)
-    {
-        slen = s->dsc$w_length;
-        sptr = s->dsc$a_pointer;
+    short tmp;
+    size_t len;
+    const char *s;
+
+    s = desc->dsc$a_pointer;
+    switch (desc->dsc$b_class) {
+    case DSC$K_CLASS_S:
+    case DSC$K_CLASS_D:
+        len = desc->dsc$w_length;
+        break;
+    case DSC$K_CLASS_VS:
+        memcpy(&tmp, s, sizeof(short));
+        len = tmp;
+        s += sizeof(short);
+        break;
+    default:
+        fprintf(stderr, "Unsupported descriptor class: %d\n", desc->dsc$b_class);
+        exit(SS$ABORT);
     }
-    else if(s->dsc$b_class == DSC$K_CLASS_VS) 
-    {
-        slen = *((short int *)s->dsc$a_pointer);
-        sptr = s->dsc$a_pointer + sizeof(short int);
-    }
-    else
-    {
-        fprintf(stderr, "Unsupported descriptor class: %d\n", s->dsc$b_class);
-        exit(44);
-    }
-    res = malloc(slen + 1);
-    strncpy(res, sptr, slen);
-    res[slen] = 0;
-    /* trim traling whitespace */
-    ix = slen - 1;
-    while(ix >= 0 && (res[ix] == ' ' || res[ix] == 0))
-    {
-        res[ix] = 0;
-        ix--;
-    }
-    return res;
+
+    return (simple_string_t){ .s = s, .len = len };
 }
 
 void vms_simple_stomp_debug(int *debug)
@@ -47,65 +45,82 @@ void vms_simple_stomp_debug(int *debug)
 }
 
 
-int vms_simple_stomp_init(simple_stomp_t *ctx, struct dsc$descriptor *host, int *port)
+int vms_simple_stomp_initx(simple_stomp_t *ctx,
+    struct dsc$descriptor *host_dsc, int *pport,
+    struct dsc$descriptor *client_id_dsc,
+    struct dsc$descriptor *username_dsc,
+    struct dsc$descriptor *password_dsc)
 {
-    int stat;
-    char *host2;
-    host2 = in_cstr(host);
-    stat = simple_stomp_init(ctx, host2, *port, print);
-    free(host2);
-    return stat;
+    simple_string_t host = desc2string(host_dsc);
+    simple_string_t clientid, *clientidp = NULL;
+    simple_string_t username, *usernamep = NULL;
+    simple_string_t password, *passwordp = NULL;
+    if (client_id_dsc != NULL) {
+        clientid = desc2string(client_id_dsc);
+        clientidp = &clientid;
+    } else {
+        char *cid = getenv("clientid");
+        if (cid != NULL) {
+            clientid = (simple_string_t){
+                .s = cid,
+                .len = strlen(cid),
+            };
+            clientidp = &clientid;
+        }
+    }
+    if (username_dsc != NULL) {
+        username = desc2string(username_dsc);
+        usernamep = &username;
+    }
+    if (password_dsc != NULL) {
+        password = desc2string(password_dsc);
+        passwordp = &password;
+    }
+    return simple_stomp_init(ctx, &host, *pport,
+        clientidp, usernamep, passwordp,
+        vms_simple_stomp_print_err);
 }
 
-int vms_simple_stomp_write(simple_stomp_t *ctx, struct dsc$descriptor *qname, struct dsc$descriptor *msg)
+int vms_simple_stomp_write(simple_stomp_t *ctx,
+    struct dsc$descriptor *qname_dsc, struct dsc$descriptor *msg_dsc)
 {
-    int stat;
-    char *qname2, *msg2;
-    qname2 = in_cstr(qname);
-    msg2 = in_cstr(msg);
-    stat = simple_stomp_write(ctx, qname2, msg2);
-    free(qname2);
-    free(msg2);
-    return stat;
+    simple_string_t qname = desc2string(qname_dsc);
+    simple_string_t msg = desc2string(msg_dsc);
+    return simple_stomp_write(ctx, &qname, &msg);
 }
 
-int vms_simple_stomp_sub(simple_stomp_t *ctx, struct dsc$descriptor *qname)
+int vms_simple_stomp_sub(simple_stomp_t *ctx, struct dsc$descriptor *qname_dsc)
 {
-    int stat;
-    char *qname2;
-    qname2 = in_cstr(qname);
-    stat = simple_stomp_sub(ctx, qname2);
-    free(qname2);
-    return stat;
+    simple_string_t qname = desc2string(qname_dsc);
+    return simple_stomp_sub(ctx, &qname);
 }
 
-int vms_simple_stomp_unsub(simple_stomp_t *ctx, struct dsc$descriptor *qname)
+int vms_simple_stomp_unsub(simple_stomp_t *ctx, struct dsc$descriptor *qname_dsc)
 {
-    int stat;
-    char *qname2;
-    qname2 = in_cstr(qname);
-    stat = simple_stomp_unsub(ctx, qname2);
-    free(qname2);
-    return stat;
+    simple_string_t qname = desc2string(qname_dsc);
+    return simple_stomp_unsub(ctx, &qname);
 }
 
-int vms_simple_stomp_readone(simple_stomp_t *ctx, struct dsc$descriptor *msg, int *msglen)
+int vms_simple_stomp_readone(simple_stomp_t *ctx,
+    struct dsc$descriptor *msg_dsc, int *msglen)
 {
-    int stat;
-    stat = simple_stomp_readone(ctx, msg->dsc$a_pointer);
-    *msglen = strlen(msg->dsc$a_pointer);
-    return stat;
+    char *msg = msg_dsc->dsc$a_pointer;
+    int status = simple_stomp_readone(ctx, msg, (size_t)*msglen);
+    if (status == SIMPLE_STOMP_SUCCESS)
+        *msglen = strlen(msg);
+    return status;
 }
 
-int vms_simple_stomp_read(simple_stomp_t *ctx, struct dsc$descriptor *qname, struct dsc$descriptor *msg, int *msglen)
+int vms_simple_stomp_read(simple_stomp_t *ctx,
+    struct dsc$descriptor *qname_dsc,
+    struct dsc$descriptor *msg_dsc, int *msglen)
 {
-    int stat;
-    char *qname2;
-    qname2 = in_cstr(qname);
-    stat = simple_stomp_read(ctx, qname2, msg->dsc$a_pointer);
-    *msglen = strlen(msg->dsc$a_pointer);
-    free(qname2);
-    return stat;
+    char *msg = msg_dsc->dsc$a_pointer;
+    simple_string_t qname = desc2string(qname_dsc);
+    int status = simple_stomp_read(ctx, &qname, msg, (size_t)*msglen);
+    if (status == SIMPLE_STOMP_SUCCESS)
+        *msglen = strlen(msg);
+    return status;
 }
 
 int vms_simple_stomp_close(simple_stomp_t *ctx)
