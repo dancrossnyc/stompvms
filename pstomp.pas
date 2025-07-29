@@ -21,6 +21,10 @@ function stomp_write(%REF ctx : stomp_ctx;
 function stomp_sub(%REF ctx : stomp_ctx;
                    %STDESCR qname : packed array [l1..u1:integer] of char) : integer; extern;
 
+[external('VMS_SIMPLE_STOMP_UNSUB')]
+function stomp_unsub(%REF ctx : stomp_ctx;
+                     %STDESCR qname : packed array [l1..u1:integer] of char) : integer; extern;
+
 [external('VMS_SIMPLE_STOMP_READONE')]
 function stomp_readone(%REF ctx : stomp_ctx;
                        %STDESCR msg : packed array [l2..u2:integer] of char;

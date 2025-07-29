@@ -79,6 +79,16 @@ int vms_simple_stomp_sub(simple_stomp_t *ctx, struct dsc$descriptor *qname)
     return stat;
 }
 
+int vms_simple_stomp_unsub(simple_stomp_t *ctx, struct dsc$descriptor *qname)
+{
+    int stat;
+    char *qname2;
+    qname2 = in_cstr(qname);
+    stat = simple_stomp_unsub(ctx, qname2);
+    free(qname2);
+    return stat;
+}
+
 int vms_simple_stomp_readone(simple_stomp_t *ctx, struct dsc$descriptor *msg, int *msglen)
 {
     int stat;

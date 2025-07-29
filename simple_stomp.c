@@ -141,7 +141,7 @@ void simple_stomp_debug(int debug)
 int simple_stomp_init(simple_stomp_t *ctx, const char *host, int port, error_handler eh)
 {
    int status;
-   char errmsg[200], cmd[80], header[80], body[80];
+   char errmsg[200], cmd[800], header[800], body[800];
    struct sockaddr local, remote;
    struct hostent *hostinfo;
    ctx->eh = eh;
@@ -179,11 +179,26 @@ int simple_stomp_init(simple_stomp_t *ctx, const char *host, int port, error_han
    }
    ctx->ix = 0;
    ctx->buf[ctx->ix] = 0;
-   if(!helper_write(ctx, "CONNECT", NULL, NULL))
+   char *clientid = getenv("clientid");
+   if(clientid == NULL)
    {
-      snprintf(errmsg, sizeof(errmsg), "Error sending CONNECT");
-      ctx->eh(errmsg);
-      return 0;
+       if(!helper_write(ctx, "CONNECT", NULL, NULL))
+       {
+          snprintf(errmsg, sizeof(errmsg), "Error sending CONNECT");
+          ctx->eh(errmsg);
+          return 0;
+       }
+   }
+   else
+   {
+       char header[800];
+       snprintf(header, sizeof(header), "accept-version:1.0,1.1,1.2\nclient-id:%s", clientid);
+       if(!helper_write(ctx, "CONNECT", header, NULL))
+       {
+          snprintf(errmsg, sizeof(errmsg), "Error sending CONNECT");
+          ctx->eh(errmsg);
+          return 0;
+       }
    }
    if(!helper_read(ctx, cmd, header, body))
    {
@@ -196,7 +211,7 @@ int simple_stomp_init(simple_stomp_t *ctx, const char *host, int port, error_han
 
 int simple_stomp_write(simple_stomp_t *ctx, const char *qname, const char *msg)
 {
-   char header[80], errmsg[200];
+   char header[800], errmsg[200];
    snprintf(header, sizeof(header), "destination: %s", qname);
    if(!helper_write(ctx, "SEND", header, msg))
    {
@@ -209,7 +224,7 @@ int simple_stomp_write(simple_stomp_t *ctx, const char *qname, const char *msg)
 
 int simple_stomp_sub(simple_stomp_t *ctx, const char *qname)
 {
-   char cmd[80], header[80], errmsg[200];
+   char cmd[800], header[800], errmsg[200];
    snprintf(header, sizeof(header), "destination: %s", qname);
    if(!helper_write(ctx, "SUBSCRIBE", header, NULL))
    {
@@ -220,9 +235,35 @@ int simple_stomp_sub(simple_stomp_t *ctx, const char *qname)
    return 1;
 }
 
+int simple_stomp_unsub(simple_stomp_t *ctx, const char *qname)
+{
+   char cmd[800], header[800], errmsg[200];
+   char *p = strstr(qname, "\n");
+   if(p == NULL)
+   {
+       if(!helper_write(ctx, "UNSUBSCRIBE", NULL, NULL))
+       {
+          snprintf(errmsg, sizeof(errmsg), "Error sending UNSUBSCRIBE");
+          ctx->eh(errmsg);
+          return 0;
+       }
+   }
+   else
+   {
+       strcpy(header, p + 1);
+       if(!helper_write(ctx, "UNSUBSCRIBE", header, NULL))
+       {
+          snprintf(errmsg, sizeof(errmsg), "Error sending UNSUBSCRIBE");
+          ctx->eh(errmsg);
+          return 0;
+       }
+   }
+   return 1;
+}
+
 int simple_stomp_readone(simple_stomp_t *ctx, char *msg)
 {
-   char cmd[80], header[80], errmsg[200];
+   char cmd[800], header[800], errmsg[200];
    if(!helper_read(ctx, cmd, header, msg))
    {
       snprintf(errmsg, sizeof(errmsg), "Error receiving MESSAGE");
