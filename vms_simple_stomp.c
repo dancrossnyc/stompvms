@@ -2,6 +2,9 @@
 #include <string.h>
 #include <stdlib.h>
 
+#include <ssdef.h>
+#include <descrip.h>
+
 #include "vms_simple_stomp.h"
 
 static void print(char *msg)
@@ -26,7 +29,7 @@ static char *in_cstr(struct dsc$descriptor *s)
     else
     {
         fprintf(stderr, "Unsupported descriptor class: %d\n", s->dsc$b_class);
-        exit(44);
+        exit(SS$_ABORT);
     }
     res = malloc(slen + 1);
     strncpy(res, sptr, slen);
@@ -46,7 +49,6 @@ void vms_simple_stomp_debug(int *debug)
     simple_stomp_debug(*debug);
 }
 
-
 int vms_simple_stomp_init(simple_stomp_t *ctx, struct dsc$descriptor *host, int *port)
 {
     int stat;
@@ -54,6 +56,23 @@ int vms_simple_stomp_init(simple_stomp_t *ctx, struct dsc$descriptor *host, int 
     host2 = in_cstr(host);
     stat = simple_stomp_init(ctx, host2, *port, print);
     free(host2);
+    return stat;
+}
+
+int vms_simple_stomp_initx(simple_stomp_t *ctx, struct dsc$descriptor *host, int *port,
+                           struct dsc$descriptor *clientid, struct dsc$descriptor *un, struct dsc$descriptor *pw)
+{
+    int stat;
+    char *host2, *clientid2, *un2, *pw2;
+    host2 = in_cstr(host);
+    clientid2 = in_cstr(clientid);
+    un2 = in_cstr(un);
+    pw2 = in_cstr(pw);
+    stat = simple_stomp_initx(ctx, host2, *port, clientid2, un2, pw2, print);
+    free(host2);
+    free(clientid2);
+    free(un2);
+    free(pw2);
     return stat;
 }
 

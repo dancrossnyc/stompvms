@@ -138,7 +138,9 @@ void simple_stomp_debug(int debug)
    print_debug = debug;
 }
 
-int simple_stomp_init(simple_stomp_t *ctx, const char *host, int port, error_handler eh)
+int simple_stomp_initx(simple_stomp_t *ctx, const char *host, int port,
+                       const char *clientid, const char *un, const char *pw,
+                       error_handler eh)
 {
    int status;
    char errmsg[200], cmd[800], header[800], body[800];
@@ -179,8 +181,11 @@ int simple_stomp_init(simple_stomp_t *ctx, const char *host, int port, error_han
    }
    ctx->ix = 0;
    ctx->buf[ctx->ix] = 0;
-   char *clientid = getenv("clientid");
    if(clientid == NULL)
+   {
+       clientid = getenv("clientid");
+   }
+   if(clientid == NULL && un == NULL & pw == NULL)
    {
        if(!helper_write(ctx, "CONNECT", NULL, NULL))
        {
@@ -192,7 +197,20 @@ int simple_stomp_init(simple_stomp_t *ctx, const char *host, int port, error_han
    else
    {
        char header[800];
-       snprintf(header, sizeof(header), "accept-version:1.0,1.1,1.2\nclient-id:%s", clientid);
+       char *p = header;
+       p += snprintf(p, sizeof(header) - (p - header), "accept-version:1.0,1.1,1.2");
+       if(clientid != NULL)
+       {
+           p += snprintf(p, sizeof(header) - (p - header), "\nclient-id:%s", clientid);
+       }
+       if(un != NULL)
+       {
+           p += snprintf(p, sizeof(header) - (p - header), "\nlogin:%s", un);
+       }
+       if(pw != NULL)
+       {
+           p += snprintf(p, sizeof(header) - (p - header), "\npasscode:%s", pw);
+       }
        if(!helper_write(ctx, "CONNECT", header, NULL))
        {
           snprintf(errmsg, sizeof(errmsg), "Error sending CONNECT");
@@ -206,7 +224,17 @@ int simple_stomp_init(simple_stomp_t *ctx, const char *host, int port, error_han
       ctx->eh(errmsg);
       return 0;
    }
+   if(strcmp(cmd, "CONNECTED") != 0)
+   {
+       ctx->eh(body);
+       return 0;
+   }
    return 1;
+}
+
+int simple_stomp_init(simple_stomp_t *ctx, const char *host, int port, error_handler eh)
+{
+    return simple_stomp_initx(ctx, host, port, NULL, NULL, NULL, eh);
 }
 
 int simple_stomp_write(simple_stomp_t *ctx, const char *qname, const char *msg)

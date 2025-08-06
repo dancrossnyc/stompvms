@@ -7,6 +7,8 @@
 
 void vms_simple_stomp_debug(int *debug);
 int vms_simple_stomp_init(simple_stomp_t *ctx, struct dsc$descriptor *host, int *port);
+int vms_simple_stomp_initx(simple_stomp_t *ctx, struct dsc$descriptor *host, int *port,
+                           struct dsc$descriptor *clientid, struct dsc$descriptor *un, struct dsc$descriptor *pw);
 int vms_simple_stomp_write(simple_stomp_t *ctx, struct dsc$descriptor *qname, struct dsc$descriptor *msg);
 int vms_simple_stomp_sub(simple_stomp_t *ctx, struct dsc$descriptor *qname);
 int vms_simple_stomp_unsub(simple_stomp_t *ctx, struct dsc$descriptor *qname);

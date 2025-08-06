@@ -12,6 +12,14 @@ function stomp_init(%REF ctx : stomp_ctx;
                     %STDESCR host : packed array [l1..u1:integer] of char;
                     %REF port : integer) : integer; extern;
 
+[external('VMS_SIMPLE_STOMP_INITX')]
+function stomp_initx(%REF ctx : stomp_ctx;
+                     %STDESCR host : packed array [l1..u1:integer] of char;
+                     %REF port : integer;
+                     %STDESCR clientid : packed array [l2..u2:integer] of char;
+                     %STDESCR un : packed array [l3..u3:integer] of char;
+                     %STDESCR pw : packed array [l4..u4:integer] of char) : integer; extern;
+
 [external('VMS_SIMPLE_STOMP_WRITE')]
 function stomp_write(%REF ctx : stomp_ctx;
                      %STDESCR qname : packed array [l1..u1:integer] of char;
